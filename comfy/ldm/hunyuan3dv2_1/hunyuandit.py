@@ -328,7 +328,7 @@ class CrossAttention(nn.Module):
         kv = torch.cat((k, v), dim=-1)
         split_size = kv.shape[-1] // self.num_heads // 2
 
-        kv = kv.view(1, -1, self.num_heads, split_size * 2)
+        kv = kv.view(b, -1, self.num_heads, split_size * 2)
         k, v = torch.split(kv, split_size, dim=-1)
 
         q = q.view(b, s1, self.num_heads, self.head_dim)
@@ -398,7 +398,7 @@ class Attention(nn.Module):
         qkv_combined = torch.cat((query, key, value), dim=-1)
         split_size = qkv_combined.shape[-1] // self.num_heads // 3
 
-        qkv = qkv_combined.view(1, -1, self.num_heads, split_size * 3)
+        qkv = qkv_combined.view(B, -1, self.num_heads, split_size * 3)
         query, key, value = torch.split(qkv, split_size, dim=-1)
 
         query = query.reshape(B, N, self.num_heads, self.head_dim)
