@@ -1264,7 +1264,9 @@ def tiled_scale_multidim_multigpu(samples, functions, tile=(64, 64), overlap=8, 
             continue
 
         positions = [range(0, s.shape[d+2] - overlap[d], tile[d] - overlap[d]) if s.shape[d+2] > tile[d] else [0] for d in range(dims)]
-        split = {devices[i]: itertools.islice(itertools.product(*positions), i, None, len(devices)) for i in range(len(devices))}
+        all_positions = list(itertools.product(*positions))
+
+        split = {devices[i]: all_positions[i::len(devices)] for i in range(len(devices))}
 
         out_shape = [s.shape[0], out_channels] + mult_list_upscale(s.shape[2:])
         div_shape = [s.shape[0], 1] + mult_list_upscale(s.shape[2:])
@@ -1276,8 +1278,7 @@ def tiled_scale_multidim_multigpu(samples, functions, tile=(64, 64), overlap=8, 
 
         def worker(device, my_positions):
             try:
-                if device.type == "cuda":
-                    torch.cuda.set_device(device)
+                torch.cuda.set_device(device)
                 fn = functions[device]
                 local_buf = bufs[device]
                 local_div = divs[device]
@@ -1306,24 +1307,17 @@ def tiled_scale_multidim_multigpu(samples, functions, tile=(64, 64), overlap=8, 
 
                         o = local_buf
                         o_d = local_div
-                        ps_view = ps
-                        mask_view = mask
                         for d in range(dims):
-                            l = min(ps_view.shape[d + 2], o.shape[d + 2] - upscaled[d])
-                            o = o.narrow(d + 2, upscaled[d], l)
-                            o_d = o_d.narrow(d + 2, upscaled[d], l)
-                            if l < ps_view.shape[d + 2]:
-                                ps_view = ps_view.narrow(d + 2, 0, l)
-                                mask_view = mask_view.narrow(d + 2, 0, l)
+                            o = o.narrow(d + 2, upscaled[d], mask.shape[d + 2])
+                            o_d = o_d.narrow(d + 2, upscaled[d], mask.shape[d + 2])
 
-                        o.add_(ps_view * mask_view)
-                        o_d.add_(mask_view)
+                        o.add_(ps * mask)
+                        o_d.add_(mask)
 
                         if pbar is not None:
                             with pbar_lock:
                                 pbar.update(1)
-                if device.type == "cuda":
-                    torch.cuda.synchronize(device)
+                torch.cuda.synchronize(device)
             except BaseException as e:
                 with worker_lock:
                     worker_errors.append(e)
@@ -1337,7 +1331,7 @@ def tiled_scale_multidim_multigpu(samples, functions, tile=(64, 64), overlap=8, 
             raise worker_errors[0]
 
         combined_buf = sum(bufs.values())
-        combined_div = sum(divs.values())
+        combined_div = sum(divs.values()).clamp_(min=1e-12)
         output[b:b+1] = combined_buf / combined_div
 
     return output

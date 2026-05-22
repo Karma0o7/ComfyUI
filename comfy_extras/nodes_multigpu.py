@@ -13,8 +13,8 @@ import comfy.multigpu
 
 class MultiGPUCFGSplitNode(io.ComfyNode):
     """
-    Attaches per-device deepclones to any connected MODEL, UPSCALE_MODEL, and/or VAE so
-    downstream nodes that recognize the attached state dispatch their work across multiple GPUs.
+    Attaches per-device deepclones to any connected MODEL and/or UPSCALE_MODEL so downstream
+    nodes that recognize the attached state dispatch their work across multiple GPUs.
 
     Place after nodes that modify the model object itself (compile, attention-switch, etc.).
     Otherwise position is not order-sensitive.
@@ -30,25 +30,21 @@ class MultiGPUCFGSplitNode(io.ComfyNode):
             inputs=[
                 io.Model.Input("model", optional=True),
                 io.UpscaleModel.Input("upscale_model", optional=True),
-                io.Vae.Input("vae", optional=True),
                 io.Int.Input("max_gpus", default=2, min=1, step=1),
             ],
             outputs=[
                 io.Model.Output(),
                 io.UpscaleModel.Output(),
-                io.Vae.Output(),
             ],
         )
 
     @classmethod
-    def execute(cls, max_gpus: int, model: ModelPatcher = None, upscale_model=None, vae=None) -> io.NodeOutput:
+    def execute(cls, max_gpus: int, model: ModelPatcher = None, upscale_model=None) -> io.NodeOutput:
         if model is not None:
             model = comfy.multigpu.create_multigpu_deepclones(model, max_gpus, reuse_loaded=True)
         if upscale_model is not None:
             upscale_model = comfy.multigpu.create_upscale_model_multigpu_deepclones(upscale_model, max_gpus)
-        if vae is not None:
-            vae = comfy.multigpu.create_vae_multigpu_deepclones(vae, max_gpus)
-        return io.NodeOutput(model, upscale_model, vae)
+        return io.NodeOutput(model, upscale_model)
 
 
 class MultiGPUOptionsNode(io.ComfyNode):
