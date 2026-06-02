@@ -69,6 +69,19 @@ def test_option_when_list_with_non_comfytype_rejected():
         io.DynamicSlot.Option(when=[io.Image, "MASK"], inputs=[])
 
 
+def test_option_when_list_with_anytype_rejected():
+    """AnyType must stand alone — it represents the unresolvable-wildcard
+    state, not a concrete type that can share a branch with concrete types."""
+    with pytest.raises(ValueError, match="AnyType cannot be grouped"):
+        io.DynamicSlot.Option(when=[io.Image, io.AnyType], inputs=[])
+
+
+def test_option_when_multitype_with_anytype_rejected():
+    mt = io.MultiType.Input("x", types=[io.Image, io.AnyType])
+    with pytest.raises(ValueError, match="AnyType cannot be grouped"):
+        io.DynamicSlot.Option(when=mt, inputs=[])
+
+
 # ---------------------------------------------------------------------------
 # DynamicSlot.Input construction and serialization
 # ---------------------------------------------------------------------------

@@ -1242,7 +1242,13 @@ class DynamicSlot(ComfyTypeI):
             if isinstance(when, type) and issubclass(when, _ComfyType):
                 return (when.io_type,)
             if isinstance(when, MultiType.Input):
-                return tuple(dict.fromkeys(t.io_type for t in when.io_types))
+                result = tuple(dict.fromkeys(t.io_type for t in when.io_types))
+                if "*" in result and len(result) > 1:
+                    raise ValueError(
+                        "DynamicSlot.Option: AnyType cannot be grouped with concrete types; "
+                        "use a separate Option(when=io.AnyType, ...) instead"
+                    )
+                return result
             if isinstance(when, Iterable) and not isinstance(when, str):
                 types: list[str] = []
                 for t in when:
@@ -1254,6 +1260,11 @@ class DynamicSlot(ComfyTypeI):
                         types.append(t.io_type)
                 if not types:
                     raise ValueError("DynamicSlot.Option: when=[] is not allowed; use when=None instead")
+                if "*" in types and len(types) > 1:
+                    raise ValueError(
+                        "DynamicSlot.Option: AnyType cannot be grouped with concrete types; "
+                        "use a separate Option(when=io.AnyType, ...) instead"
+                    )
                 return tuple(types)
             raise ValueError(
                 "DynamicSlot.Option: when must be None, a ComfyType class, a list of ComfyType classes, "
