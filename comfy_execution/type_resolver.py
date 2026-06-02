@@ -233,11 +233,7 @@ class TypeResolver:
         return ANY_TYPE
 
     def _get_finalized_outputs(self, node: dict | None, class_def) -> io.FinalizedOutputs | None:
-        """Return ``FinalizedOutputs`` for V3 nodes with DynamicOutputs groups, else ``None``.
-
-        ``None`` means "use the class-level static arrays" (V1 nodes or V3
-        without any dynamic group), keeping the hot path zero-cost.
-        """
+        """Return ``FinalizedOutputs`` for V3 nodes with DynamicOutputs groups, else ``None``."""
         if not (isinstance(class_def, type) and issubclass(class_def, _ComfyNodeInternal)):
             return None
         try:

@@ -216,3 +216,60 @@ def test_normalize_named_result_requires_dynamic_node():
 
     with pytest.raises(Exception, match="DynamicOutputs"):
         _normalize_named_result(io.NodeOutput.from_named({"a": 1}), None)
+
+
+# ---------------------------------------------------------------------------
+# Blocker / output-shape paths through get_output_from_returns
+# ---------------------------------------------------------------------------
+
+def _dyn_finalized(branch_outputs):
+    from comfy_api.latest import _io as io
+    return io.get_finalized_class_outputs(
+        [io.DynamicOutputs.ByKey(id="r", selector="mode", options=[
+            io.DynamicOutputs.Option(key="x", outputs=branch_outputs),
+        ])],
+        {"mode": "x"},
+    )
+
+
+def test_blocker_sized_to_finalized_outputs_for_node_output():
+    """V3 node returning a bare ``ExecutionBlocker`` must yield blocker tuples
+    sized to the active output count, not the empty static RETURN_TYPES."""
+    from comfy_api.latest import _io as io
+    from comfy_execution.graph_utils import ExecutionBlocker
+    from execution import get_output_from_returns
+
+    finalized = _dyn_finalized([io.Image.Output("a"), io.Mask.Output("b")])
+
+    class _Obj:
+        RETURN_TYPES = ()  # only static outputs — dynamic group lives in schema
+
+    out = io.NodeOutput(block_execution="paused")
+    output, _ui, has_subgraph = get_output_from_returns([out], _Obj(), finalized_outputs=finalized)
+    assert has_subgraph is False
+    # merge_result_data flattens per-slot, one input → list-of-one per slot
+    assert len(output) == 2
+    for slot in output:
+        assert len(slot) == 1
+        assert isinstance(slot[0], ExecutionBlocker)
+        assert slot[0].message == "paused"
+
+
+def test_bare_execution_blocker_sized_to_finalized_outputs():
+    """The non-NodeOutput path (bare ``ExecutionBlocker`` from V1-style returns)
+    also sizes against the finalized list."""
+    from comfy_api.latest import _io as io
+    from comfy_execution.graph_utils import ExecutionBlocker
+    from execution import get_output_from_returns
+
+    finalized = _dyn_finalized([io.Image.Output("a"), io.Mask.Output("b"), io.Latent.Output("c")])
+
+    class _Obj:
+        RETURN_TYPES = ()
+
+    blocker = ExecutionBlocker("stopped")
+    output, _ui, has_subgraph = get_output_from_returns([blocker], _Obj(), finalized_outputs=finalized)
+    assert has_subgraph is False
+    assert len(output) == 3
+    for slot in output:
+        assert slot[0] is blocker

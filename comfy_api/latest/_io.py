@@ -1966,13 +1966,21 @@ class Schema:
             issues.append(f"Input ids must be unique, but {[item for item, count in Counter(input_ids).items() if count > 1]} are not.")
         if len(output_set) != len(output_ids):
             issues.append(f"Output ids must be unique, but {[item for item, count in Counter(output_ids).items() if count > 1]} are not.")
-        # verify dynamic-output groups point at real inputs
+        # verify dynamic-output groups: unique group ids + selectors point at real inputs
+        group_ids: list[str] = []
         for o in self.outputs:
-            if isinstance(o, DynamicOutputs.ByKey) and o.selector not in input_set:
-                issues.append(
-                    f"DynamicOutputs.ByKey(id={o.id!r}) selector input {o.selector!r} "
-                    f"does not exist on the schema."
-                )
+            if isinstance(o, DynamicOutputs.ByKey):
+                group_ids.append(o.id)
+                if o.selector not in input_set:
+                    issues.append(
+                        f"DynamicOutputs.ByKey(id={o.id!r}) selector input {o.selector!r} "
+                        f"does not exist on the schema."
+                    )
+        if len(set(group_ids)) != len(group_ids):
+            issues.append(
+                f"DynamicOutputs group ids must be unique, but "
+                f"{[i for i, c in Counter(group_ids).items() if c > 1]} are not."
+            )
         if len(issues) > 0:
             raise ValueError("\n".join(issues))
         # validate inputs and outputs

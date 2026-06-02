@@ -205,3 +205,30 @@ def test_nodeoutput_from_named_stores_dict():
 def test_nodeoutput_rejects_mixed_positional_and_named():
     with pytest.raises(ValueError, match="cannot mix positional"):
         io.NodeOutput(1, 2, named={"a": 1})
+
+
+# ---------------------------------------------------------------------------
+# Group-id uniqueness
+# ---------------------------------------------------------------------------
+
+def test_schema_rejects_duplicate_dynamic_group_ids():
+    class Dup(io.ComfyNode):
+        @classmethod
+        def define_schema(cls):
+            return io.Schema(
+                node_id="Dup",
+                inputs=[io.Combo.Input("mode", options=["a"])],
+                outputs=[
+                    io.DynamicOutputs.ByKey(id="r", selector="mode",
+                        options=[io.DynamicOutputs.Option(key="a", outputs=[io.Image.Output("x")])]),
+                    io.DynamicOutputs.ByKey(id="r", selector="mode",
+                        options=[io.DynamicOutputs.Option(key="a", outputs=[io.Latent.Output("y")])]),
+                ],
+            )
+
+        @classmethod
+        def execute(cls, **kwargs):
+            return io.NodeOutput.from_named({"x": None, "y": None})
+
+    with pytest.raises(ValueError, match="DynamicOutputs group ids must be unique"):
+        Dup.GET_SCHEMA()

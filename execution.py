@@ -420,20 +420,26 @@ def get_output_from_returns(return_values, obj, finalized_outputs=None):
             # downstream code treats this as a fixed-shape tuple.
             named_result = (
                 _normalize_named_result(r, finalized_outputs)
-                if getattr(r, "named", None) is not None
+                if r.named is not None
                 else None
             )
-            if r.expand is not None:
+            # block_execution takes precedence: EXECUTE_NORMALIZED converts a bare
+            # ExecutionBlocker return into NodeOutput(block_execution=msg) with no
+            # positional / named result, so we must shape the tuple ourselves.
+            if r.block_execution is not None:
+                result = tuple([ExecutionBlocker(r.block_execution)] * expected_count)
+                if r.expand is not None:
+                    has_subgraph = True
+                    subgraph_results.append((r.expand, result))
+                else:
+                    results.append(result)
+                    subgraph_results.append((None, result))
+            elif r.expand is not None:
                 has_subgraph = True
-                new_graph = r.expand
                 result = named_result if named_result is not None else r.result
-                if r.block_execution is not None:
-                    result = tuple([ExecutionBlocker(r.block_execution)] * expected_count)
-                subgraph_results.append((new_graph, result))
+                subgraph_results.append((r.expand, result))
             elif named_result is not None or r.result is not None:
                 result = named_result if named_result is not None else r.result
-                if r.block_execution is not None:
-                    result = tuple([ExecutionBlocker(r.block_execution)] * expected_count)
                 results.append(result)
                 subgraph_results.append((None, result))
         else:
@@ -493,9 +499,7 @@ async def execute(server, dynprompt, caches, current_item, extra_data, executed,
         execution_list.cache_update(unique_id, cached)
         return (ExecutionResult.SUCCESS, None, None)
 
-    # Finalize the active output list for this prompt (no-op for static V3 / V1
-    # nodes). Computed once per execute() call so the three output-shaping paths
-    # below — initial, pending async resume, pending subgraph resume — all agree.
+    # Finalize active outputs once so initial / async-resume / subgraph-resume paths agree.
     finalized_outputs = None
     if issubclass(class_def, _ComfyNodeInternal):
         schema = class_def.GET_SCHEMA()
@@ -979,9 +983,17 @@ async def validate_inputs(prompt_id, prompt, item, validated, visiting=None, typ
                 continue
 
             o_id = val[0]
+            if not isinstance(o_id, str):
+                errors.append({
+                    "type": "bad_linked_input",
+                    "message": "Bad linked input, source node id must be a string",
+                    "details": f"{x}, linked_node({val})",
+                    "extra_info": {"input_name": x, "linked_node": val}
+                })
+                continue
             # Reject links pointing at slot indices outside the upstream node's
-            # active output list (e.g. stale link after a DynamicOutputs branch
-            # change). Reports the active count for clearer diagnostics.
+            # active output count (e.g. stale link after a DynamicOutputs branch
+            # change).
             upstream_output_count = type_resolver.finalized_output_count(o_id)
             if not isinstance(val[1], int) or isinstance(val[1], bool) or val[1] < 0 or val[1] >= upstream_output_count:
                 error = {
