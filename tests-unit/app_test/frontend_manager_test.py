@@ -291,14 +291,11 @@ def test_get_installed_templates_version_not_installed():
     assert version is None
 
 
-# ---------------------------------------------------------------------------
 # Auto-managed @latest / @prerelease cleanup (CORE-285)
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
 def custom_frontends_root(tmp_path, monkeypatch):
-    """Point ``FrontendManager.CUSTOM_FRONTENDS_ROOT`` at a fresh tmp dir."""
     root = tmp_path / "web_custom_versions"
     root.mkdir()
     monkeypatch.setattr(FrontendManager, "CUSTOM_FRONTENDS_ROOT", str(root))
@@ -306,7 +303,6 @@ def custom_frontends_root(tmp_path, monkeypatch):
 
 
 def _make_version_dir(root, owner, repo, version):
-    """Create ``<root>/<owner>_<repo>/<version>/index.html`` and return path."""
     folder = root / f"{owner}_{repo}" / version
     folder.mkdir(parents=True, exist_ok=True)
     (folder / "index.html").write_text("<html></html>")
@@ -333,8 +329,6 @@ def test_read_auto_managed_versions_corrupt(custom_frontends_root):
 
 @pytest.mark.parametrize("payload", ["[]", "null", '"oops"', "42"])
 def test_read_auto_managed_versions_non_dict_root(custom_frontends_root, payload):
-    """Valid JSON whose root isn't a dict must not raise — bug pointed out in
-    Oracle review: ``data.get(...)`` would throw on non-dict roots."""
     provider_dir = custom_frontends_root / "o_r"
     provider_dir.mkdir()
     (provider_dir / FrontendManager.AUTO_MANAGED_METADATA_FILENAME).write_text(payload)
@@ -342,8 +336,6 @@ def test_read_auto_managed_versions_non_dict_root(custom_frontends_root, payload
 
 
 def test_read_auto_managed_versions_drops_unsafe_names(custom_frontends_root):
-    """Tampered metadata containing path-traversal-y names must be ignored
-    at read time so cleanup never even sees them."""
     provider_dir = custom_frontends_root / "o_r"
     provider_dir.mkdir()
     (provider_dir / FrontendManager.AUTO_MANAGED_METADATA_FILENAME).write_text(
@@ -353,8 +345,6 @@ def test_read_auto_managed_versions_drops_unsafe_names(custom_frontends_root):
 
 
 def test_write_auto_managed_versions_drops_unsafe_names(custom_frontends_root):
-    """Even if a caller passes a tainted list, the file we persist must
-    only contain safe names."""
     FrontendManager._write_auto_managed_versions(
         "o", "r", ["1.0.0", "../escape", "/etc/passwd", "..", "."]
     )
@@ -364,10 +354,6 @@ def test_write_auto_managed_versions_drops_unsafe_names(custom_frontends_root):
 def test_prune_refuses_to_delete_outside_provider_dir(
     custom_frontends_root, monkeypatch
 ):
-    """Defense in depth: even if a hostile name slips past the read/write
-    filters somehow, ``_prune_auto_managed_versions`` must refuse to rmtree
-    anything outside the provider directory."""
-    # Set up a sibling directory that must NOT be touched.
     sibling = custom_frontends_root / "do-not-touch"
     sibling.mkdir()
     (sibling / "marker").write_text("keep me")
@@ -376,8 +362,6 @@ def test_prune_refuses_to_delete_outside_provider_dir(
     provider_dir.mkdir()
     _make_version_dir(custom_frontends_root, "o", "r", "1.0.0")
 
-    # Bypass the read filter to simulate a corrupt-but-parseable list slipping
-    # through (e.g. older code wrote it before this hardening landed).
     monkeypatch.setattr(
         FrontendManager,
         "_read_auto_managed_versions",
@@ -386,24 +370,19 @@ def test_prune_refuses_to_delete_outside_provider_dir(
 
     FrontendManager._prune_auto_managed_versions("o", "r", keep_version="2.0.0")
 
-    # Sibling untouched.
     assert sibling.exists()
     assert (sibling / "marker").read_text() == "keep me"
-    # In-bounds folder still gets cleaned.
     assert not (provider_dir / "1.0.0").exists()
 
 
 def test_prune_auto_managed_versions_removes_stale_and_keeps_pinned(
     custom_frontends_root,
 ):
-    # Two versions previously fetched via @latest, plus an explicitly pinned one.
     _make_version_dir(custom_frontends_root, "o", "r", "1.0.0")
     _make_version_dir(custom_frontends_root, "o", "r", "1.1.0")
     pinned = _make_version_dir(custom_frontends_root, "o", "r", "1.2.0")
     FrontendManager._write_auto_managed_versions("o", "r", ["1.0.0", "1.1.0"])
 
-    # User runs @latest again and it resolves to 1.1.0 — older auto-managed
-    # 1.0.0 should be deleted, pinned 1.2.0 should remain untouched.
     FrontendManager._prune_auto_managed_versions("o", "r", keep_version="1.1.0")
 
     provider_dir = custom_frontends_root / "o_r"
@@ -426,8 +405,6 @@ def test_untrack_auto_managed_version_does_not_delete_folder(custom_frontends_ro
 def test_init_frontend_latest_prunes_previous_auto_managed_versions(
     custom_frontends_root, mock_provider, mock_releases
 ):
-    # Pre-existing folders: 1.0.0 was previously downloaded via @latest, 1.1.5
-    # was explicitly pinned by the user. Now @latest resolves to 2.0.0.
     _make_version_dir(custom_frontends_root, "test-owner", "test-repo", "1.0.0")
     pinned = _make_version_dir(
         custom_frontends_root, "test-owner", "test-repo", "1.1.5"
@@ -436,7 +413,6 @@ def test_init_frontend_latest_prunes_previous_auto_managed_versions(
         "test-owner", "test-repo", ["1.0.0"]
     )
 
-    # Stub out the actual download so we just create the destination dir.
     def fake_download(release, destination_path):
         Path(destination_path).mkdir(parents=True, exist_ok=True)
         (Path(destination_path) / "index.html").write_text("<html></html>")
@@ -450,55 +426,43 @@ def test_init_frontend_latest_prunes_previous_auto_managed_versions(
         )
 
     provider_dir = custom_frontends_root / "test-owner_test-repo"
-    # 2.0.0 was downloaded and tracked.
     assert Path(result) == provider_dir / "2.0.0"
     assert (provider_dir / "2.0.0").exists()
     assert FrontendManager._read_auto_managed_versions(
         "test-owner", "test-repo"
     ) == ["2.0.0"]
-    # Old auto-managed 1.0.0 was pruned.
     assert not (provider_dir / "1.0.0").exists()
-    # Pinned 1.1.5 was left alone.
     assert pinned.exists()
 
 
 def test_init_frontend_explicit_version_promotes_out_of_auto_managed(
     custom_frontends_root, mock_provider
 ):
-    # 1.0.0 was previously downloaded via @latest.
     _make_version_dir(custom_frontends_root, "test-owner", "test-repo", "1.0.0")
     FrontendManager._write_auto_managed_versions(
         "test-owner", "test-repo", ["1.0.0"]
     )
 
-    # User now explicitly pins it. The `v`-prefixed early-return path runs.
     result = FrontendManager.init_frontend_unsafe(
         "test-owner/test-repo@v1.0.0", mock_provider
     )
 
     provider_dir = custom_frontends_root / "test-owner_test-repo"
     assert Path(result) == provider_dir / "1.0.0"
-    # It should no longer be tracked as auto-managed, so a future @latest run
-    # won't sweep it away.
     assert FrontendManager._read_auto_managed_versions(
         "test-owner", "test-repo"
     ) == []
-    # The folder is still on disk.
     assert (provider_dir / "1.0.0").exists()
 
 
-def test_init_frontend_explicit_version_no_v_prefix_promotes_out_of_auto_managed(
+def test_init_frontend_explicit_no_v_prefix_promotes_out_of_auto_managed(
     custom_frontends_root, mock_provider
 ):
-    # 1.0.0 was previously downloaded via @latest, and is also already on
-    # disk so the GitHub-resolution path is a no-op for download.
     _make_version_dir(custom_frontends_root, "test-owner", "test-repo", "1.0.0")
     FrontendManager._write_auto_managed_versions(
         "test-owner", "test-repo", ["1.0.0"]
     )
 
-    # No `v` prefix → goes through the GitHub release lookup path. The folder
-    # already exists, so download is skipped.
     with patch(
         "app.frontend_management.download_release_asset_zip"
     ) as mock_download_zip:
@@ -507,7 +471,6 @@ def test_init_frontend_explicit_version_no_v_prefix_promotes_out_of_auto_managed
         )
         mock_download_zip.assert_not_called()
 
-    # It should be promoted out of auto-managed even when the folder is reused.
     assert FrontendManager._read_auto_managed_versions(
         "test-owner", "test-repo"
     ) == []
