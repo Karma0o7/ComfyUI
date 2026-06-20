@@ -540,16 +540,17 @@ def relocate_model_asset_for_model_type_tags(
     if target_folder in current_folders:
         return False
 
-    # An unregistered folder_name cannot correspond to any real on-disk
-    # location, so there is nothing to relocate. Keep Core's established
-    # permissive model_type: labeling (spec-drift §3: Core is local/trusted and
-    # does not reject model_type: labels) — store it as a plain label, don't
-    # reject. A genuine edit-type action always targets a registered folder_name
-    # from the discovery vocabulary, so this only affects manual label adds.
+    # On a model asset, model_type: is an operational placement tag (it decides
+    # where the file lives), not a free-form label — exactly as it is for a
+    # new-byte upload (resolve_destination_from_tags). An edit IS a placement,
+    # so an unregistered folder_name is an invalid placement target and is
+    # rejected on both paths. A genuine edit-type action always targets a
+    # registered folder_name from the discovery vocabulary, so this only fires
+    # on junk manual model_type: adds.
     try:
         new_base = get_model_base_for_folder(target_folder)
-    except ValueError:
-        return False
+    except ValueError as e:
+        raise ModelMoveError("UNKNOWN_MODEL_TYPE", str(e), status=400)
 
     rel = compute_relative_filename(old_path)
     if not rel:

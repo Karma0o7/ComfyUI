@@ -252,25 +252,24 @@ class TestNoMoveCases:
         assert src.exists()
 
 
-class TestUnknownFolderIsLabelOnly:
-    def test_unknown_folder_is_stored_as_label_not_rejected(
+class TestRejects:
+    def test_unknown_folder_on_model_asset_rejected_400(
         self, mock_create_session, session: Session, model_dirs
     ):
-        # Core stays permissive about model_type: LABELS (spec-drift §3): an
-        # unregistered folder_name can't map to a real location, so it's a plain
-        # label, not a move and not a reject.
+        # On a model asset, model_type: is an operational placement tag, so an
+        # unregistered folder is an invalid placement target -> reject (symmetric
+        # with the new-byte upload path). The file is not moved and no tag is
+        # added (the POST is atomic).
         src = model_dirs["checkpoints"] / "m.safetensors"
         ref = _make_fs_ref(session, src, ["models", "model_type:checkpoints"])
 
-        result = apply_tags(reference_id=ref.id, tags=["model_type:bogus"])
-
+        with pytest.raises(ModelMoveError) as ei:
+            apply_tags(reference_id=ref.id, tags=["model_type:bogus"])
+        assert ei.value.status == 400
+        assert ei.value.code == "UNKNOWN_MODEL_TYPE"
         assert src.exists()  # not moved
-        assert "model_type:bogus" in result.total_tags
-        # The real path-derived type is untouched.
-        assert "model_type:checkpoints" in result.total_tags
+        assert _tags_after(session, ref.id) == {"models", "model_type:checkpoints"}
 
-
-class TestRejects:
     def test_collision_rejected_409_and_not_clobbered(
         self, mock_create_session, session: Session, model_dirs
     ):

@@ -127,12 +127,16 @@ def test_add_system_looking_tags_allowed_as_labels(
 ):
     aid = seeded_asset["id"]
 
+    # NB: a bare `model_type:` is intentionally NOT in this list. On a model
+    # asset model_type: is an operational placement tag (BE-1641), not a
+    # free-form label, so an unregistered one is rejected (covered by
+    # test_edit_type_unknown_folder_rejected). Every other system-looking
+    # prefix below is still stored verbatim as a label.
     response = http.post(
         f"{api_base}/api/assets/{aid}/tags",
         json={
             "tags": [
                 "models",
-                "model_type:manual",
                 "model:true",
                 "models:foo",
                 "input:true",
@@ -148,7 +152,6 @@ def test_add_system_looking_tags_allowed_as_labels(
 
     assert response.status_code == 200, body
     assert "models" in body["total_tags"]
-    assert "model_type:manual" in body["total_tags"]
     assert "model:true" in body["total_tags"]
     assert "models:foo" in body["total_tags"]
     assert "input:true" in body["total_tags"]
@@ -324,14 +327,15 @@ def test_edit_type_moves_file_and_reregisters(
     http.delete(f"{api_base}/api/assets/{aid}", timeout=30)
 
 
-def test_edit_type_unknown_folder_is_label_only(
+def test_edit_type_unknown_folder_rejected(
     http: requests.Session,
     api_base: str,
 ):
-    """An unregistered model_type: target stays a plain label (no move/reject).
+    """An unregistered model_type: target on a model asset is rejected (400).
 
-    Core stays permissive about model_type: labels; only a registered folder
-    triggers the edit-type move. The file must not move.
+    model_type: is an operational placement tag on a model asset, so an
+    unregistered folder is an invalid placement target — symmetric with the
+    new-byte upload path. The prior type is left intact (atomic).
     """
     name = f"edit_bad_{uuid.uuid4().hex[:8]}.safetensors"
     asset = _upload_model(http, api_base, name, ["models", "model_type:checkpoints", "unit-tests"])
@@ -342,9 +346,11 @@ def test_edit_type_unknown_folder_is_label_only(
         json={"tags": ["model_type:does_not_exist"]},
         timeout=120,
     )
-    body = r.json()
-    assert r.status_code == 200, body
-    assert "model_type:does_not_exist" in body["total_tags"]
-    assert "model_type:checkpoints" in body["total_tags"]
+    assert r.status_code == 400, r.json()
+
+    rg = http.get(f"{api_base}/api/assets/{aid}", timeout=120)
+    tags = set(rg.json()["tags"])
+    assert "model_type:does_not_exist" not in tags
+    assert "model_type:checkpoints" in tags
 
     http.delete(f"{api_base}/api/assets/{aid}", timeout=30)
