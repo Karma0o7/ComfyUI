@@ -9,6 +9,7 @@ import logging
 from typing import Any, TypedDict
 
 from comfy.cli_args import args
+from comfy.comfy_api_env import get_frontend_config
 
 
 class FeatureFlagInfo(TypedDict):
@@ -163,3 +164,12 @@ def get_server_features() -> dict[str, Any]:
         Dictionary of server feature flags
     """
     return SERVER_FEATURE_FLAGS.copy()
+
+
+def get_frontend_features() -> dict[str, Any]:
+    """Feature flags served by the HTTP ``/features`` endpoint."""
+    features = get_server_features()
+    overrides = get_frontend_config()
+    if overrides:
+        features.update(overrides)
+    return features

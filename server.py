@@ -708,7 +708,7 @@ class PromptServer():
 
         @routes.get("/features")
         async def get_features(request):
-            return web.json_response(feature_flags.get_server_features())
+            return web.json_response(feature_flags.get_frontend_features())
 
         @routes.get("/prompt")
         async def get_prompt(request):
