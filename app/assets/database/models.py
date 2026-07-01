@@ -76,6 +76,10 @@ class AssetReference(Base):
 
     # Cache state fields (from former AssetCacheState)
     file_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # In-root loader path derived from file_path at scan/ingest time (model
+    # category dropped). Persisted so responses read it directly instead of
+    # re-resolving against every registered model-folder base per request.
+    loader_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     mtime_ns: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     needs_verify: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_missing: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

@@ -12,10 +12,10 @@ class Asset(BaseModel):
     name: str = Field(
         ...,
         deprecated=True,
-        description="Reference label, often caller-provided or derived from the filename. Deprecated for storage path/display semantics; use `file_path`, `logical_path`, and `display_name` when present.",
+        description="Reference label, often caller-provided or derived from the filename. Deprecated for storage path/display semantics; use `loader_path`, `logical_path`, and `display_name` when present.",
     )
     hash: str | None = None
-    file_path: str | None = Field(
+    loader_path: str | None = Field(
         default=None,
         description="In-root loader path for filesystem-backed assets: the path relative to its storage root with the top-level model category dropped (e.g. `models/checkpoints/foo/bar.safetensors` -> `foo/bar.safetensors`). This is the value model loaders consume. `None` when the file is not within a recognized root or model category.",
     )

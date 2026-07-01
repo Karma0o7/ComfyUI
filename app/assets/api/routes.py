@@ -168,7 +168,11 @@ def _build_asset_response(result: schemas.AssetDetailResult | schemas.UploadResu
         paths = compute_asset_response_paths(result.ref.file_path)
         logical_path, display_name = paths if paths else (None, None)
         # In-root loader path (model category dropped): what model loaders consume.
-        loader_path = compute_loader_path(result.ref.file_path)
+        # Persisted at scan/ingest; fall back to computing for rows written
+        # before the column existed.
+        loader_path = result.ref.loader_path
+        if loader_path is None:
+            loader_path = compute_loader_path(result.ref.file_path)
     else:
         logical_path, display_name, loader_path = None, None, None
     asset_content_hash = result.asset.hash if result.asset else None
@@ -176,7 +180,7 @@ def _build_asset_response(result: schemas.AssetDetailResult | schemas.UploadResu
         id=result.ref.id,
         name=result.ref.name,
         hash=asset_content_hash,
-        file_path=loader_path,
+        loader_path=loader_path,
         logical_path=logical_path,
         display_name=display_name,
         asset_hash=asset_content_hash,

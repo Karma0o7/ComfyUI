@@ -92,6 +92,7 @@ def _ingest_file_from_path(
             name=info_name or os.path.basename(locator),
             mtime_ns=mtime_ns,
             owner_id=owner_id,
+            loader_path=compute_loader_path(locator),
         )
 
         # Get the reference we just created/updated
