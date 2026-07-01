@@ -270,16 +270,20 @@ def test_upload_response_includes_file_path_and_display_name(
     assert created_r.status_code in (200, 201), created
     stored_filename = get_asset_filename(created["asset_hash"], extension)
     expected_suffix = stored_filename
-    expected_file_path = f"{expected_prefix}/{expected_suffix}"
+    expected_logical_path = f"{expected_prefix}/{expected_suffix}"
     expected_display_name = f"{expected_display_prefix}{expected_suffix}"
+    # In-root loader path: model category dropped, no subfolders here -> just the filename.
+    expected_file_path = expected_suffix
 
     assert created["file_path"] == expected_file_path
+    assert created["logical_path"] == expected_logical_path
     assert created["display_name"] == expected_display_name
 
     detail_r = http.get(f"{api_base}/api/assets/{created['id']}", timeout=120)
     detail = detail_r.json()
     assert detail_r.status_code == 200, detail
     assert detail["file_path"] == expected_file_path
+    assert detail["logical_path"] == expected_logical_path
     assert detail["display_name"] == expected_display_name
 
     list_r = http.get(
@@ -291,6 +295,7 @@ def test_upload_response_includes_file_path_and_display_name(
     assert list_r.status_code == 200, listed
     match = next(a for a in listed["assets"] if a["id"] == created["id"])
     assert match["file_path"] == expected_file_path
+    assert match["logical_path"] == expected_logical_path
     assert match["display_name"] == expected_display_name
 
 

@@ -117,23 +117,26 @@ def compute_display_name(file_path: str) -> str | None:
     return result[1] if result else None
 
 
-def compute_file_path(file_path: str) -> str | None:
-    """Return the asset's logical storage `file_path`, or None for unknown paths."""
+def compute_logical_path(file_path: str) -> str | None:
+    """Return the asset's namespaced storage `logical_path`, or None for unknown paths."""
     result = compute_asset_response_paths(file_path)
     return result[0] if result else None
 
 
-def compute_relative_filename(file_path: str) -> str | None:
+def compute_loader_path(file_path: str) -> str | None:
     """
-    Return the model's path relative to the last well-known folder (the model category),
-    using forward slashes, eg:
+    Return the asset's in-root loader path: the path relative to the last
+    well-known folder (the model category), using forward slashes, eg:
       /.../models/checkpoints/flux/123/flux.safetensors -> "flux/123/flux.safetensors"
       /.../models/text_encoders/clip_g.safetensors -> "clip_g.safetensors"
 
-    This is legacy metadata/view filename logic, not the public Asset response
-    `display_name`. Response fields should use compute_asset_response_paths().
+    This is the value model loaders consume (the model category is dropped). It
+    backs the public Asset response `file_path` field and the internal
+    ``computed_filename`` metadata. The namespaced storage locator (`logical_path`)
+    and human-facing `display_name` come from compute_asset_response_paths().
 
-    For non-model paths, returns None.
+    For input/output/temp paths the full path relative to that root is returned.
+    For paths outside any known root, returns None.
     """
     try:
         root_category, rel_path = get_asset_category_and_relative_path(file_path)

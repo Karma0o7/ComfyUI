@@ -33,7 +33,7 @@ from app.assets.services.bulk_ingest import batch_insert_seed_assets
 from app.assets.services.file_utils import get_size_and_mtime_ns
 from app.assets.services.image_dimensions import extract_image_dimensions
 from app.assets.services.path_utils import (
-    compute_relative_filename,
+    compute_loader_path,
     get_name_and_tags_from_asset_path,
     get_path_derived_tags_from_path,
     resolve_destination_from_tags,
@@ -304,7 +304,7 @@ def _register_existing_asset(
             return result
 
         new_meta = dict(user_metadata)
-        computed_filename = compute_relative_filename(ref.file_path) if ref.file_path else None
+        computed_filename = compute_loader_path(ref.file_path) if ref.file_path else None
         if computed_filename:
             new_meta["filename"] = computed_filename
 
@@ -351,7 +351,7 @@ def _update_metadata_with_filename(
     current_metadata: dict | None,
     user_metadata: dict[str, Any],
 ) -> None:
-    computed_filename = compute_relative_filename(file_path) if file_path else None
+    computed_filename = compute_loader_path(file_path) if file_path else None
 
     current_meta = current_metadata or {}
     new_meta = dict(current_meta)

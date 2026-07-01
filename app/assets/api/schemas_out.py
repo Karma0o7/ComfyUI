@@ -12,16 +12,20 @@ class Asset(BaseModel):
     name: str = Field(
         ...,
         deprecated=True,
-        description="Reference label, often caller-provided or derived from the filename. Deprecated for storage path/display semantics; use `file_path` and `display_name` when present.",
+        description="Reference label, often caller-provided or derived from the filename. Deprecated for storage path/display semantics; use `file_path`, `logical_path`, and `display_name` when present.",
     )
     hash: str | None = None
     file_path: str | None = Field(
         default=None,
-        description="Runtime storage locator for filesystem-backed assets, using Comfy storage namespaces such as `input/`, `output/`, `temp/`, or `models/`. Not an absolute filesystem path, unique identity, or model loader path.",
+        description="In-root loader path for filesystem-backed assets: the path relative to its storage root with the top-level model category dropped (e.g. `models/checkpoints/foo/bar.safetensors` -> `foo/bar.safetensors`). This is the value model loaders consume. `None` when the file is not within a recognized root or model category.",
+    )
+    logical_path: str | None = Field(
+        default=None,
+        description="Runtime storage locator for filesystem-backed assets, using Comfy storage namespaces such as `input/`, `output/`, `temp/`, or `models/` (e.g. `models/checkpoints/foo/bar.safetensors`). Not an absolute filesystem path, unique identity, or model loader path.",
     )
     display_name: str | None = Field(
         default=None,
-        description="Human-facing label derived from `file_path`, usually the path below the top-level storage namespace. Not unique.",
+        description="Human-facing label derived from `logical_path`, usually the path below the top-level storage namespace. Not unique.",
     )
     asset_hash: str | None = None
     size: int | None = None
