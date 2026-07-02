@@ -166,6 +166,32 @@ def boxes_to_regions(boxes, width: int, height: int) -> list:
     return regions
 
 
+def normalize_incoming_boxes(bboxes) -> list:
+    if isinstance(bboxes, dict):
+        frame = [bboxes]
+    elif not isinstance(bboxes, list) or not bboxes:
+        frame = []
+    elif isinstance(bboxes[0], dict):
+        frame = bboxes
+    else:
+        frame = bboxes[0] if isinstance(bboxes[0], list) else []
+    boxes = []
+    for box in frame:
+        if not isinstance(box, dict):
+            continue
+        norm = {
+            "x": box.get("x", 0),
+            "y": box.get("y", 0),
+            "width": box.get("width", 0),
+            "height": box.get("height", 0),
+        }
+        meta = box.get("metadata")
+        if isinstance(meta, dict):
+            norm["metadata"] = meta
+        boxes.append(norm)
+    return boxes
+
+
 def _norm_bbox(region: dict) -> list[int]:
     def grid(value: float) -> int:
         return max(0, min(1000, round(value * 1000)))
@@ -199,6 +225,8 @@ def build_elements(regions: list) -> list:
 
 
 class CreateBoundingBoxes(io.ComfyNode):
+    _last_incoming: dict = {}
+
     @classmethod
     def define_schema(cls):
         editor_state = io.BoundingBoxes.Input(
@@ -217,6 +245,12 @@ class CreateBoundingBoxes(io.ComfyNode):
                     optional=True,
                     tooltip="Optional image used as background in the canvas and preview.",
                 ),
+                io.BoundingBox.Input(
+                    "bboxes",
+                    force_input=True,
+                    optional=True,
+                    tooltip="Bounding boxes from an upstream node. A new upstream value seeds the canvas; edits you make on the canvas take priority and are kept until the upstream value changes again.",
+                ),
                 io.Int.Input("width", default=1024, min=64, max=16384, step=16,
                              tooltip="Width of the canvas and the pixel grid for the bounding boxes."),
                 io.Int.Input("height", default=1024, min=64, max=16384, step=16,
@@ -228,18 +262,33 @@ class CreateBoundingBoxes(io.ComfyNode):
                 io.BoundingBox.Output(display_name="bboxes"),
                 io.Array.Output(display_name="elements"),
             ],
+            hidden=[io.Hidden.unique_id],
+            is_output_node=True,
             is_experimental=True,
         )
 
     @classmethod
-    def execute(cls, width, height, editor_state=None, background=None) -> io.NodeOutput:
-        regions = boxes_to_regions(editor_state, width, height)
+    def execute(cls, width, height, editor_state=None, background=None, bboxes=None) -> io.NodeOutput:
+        incoming = normalize_incoming_boxes(bboxes)
+        node_id = cls.hidden.unique_id
+        if incoming:
+            changed = cls._last_incoming.get(node_id) != incoming
+            if changed:
+                cls._last_incoming[node_id] = incoming
+        else:
+            changed = False
+            cls._last_incoming.pop(node_id, None)
+        source = incoming if changed else (editor_state or incoming)
+        regions = boxes_to_regions(source, width, height)
         preview = render_preview(regions, width, height, _bg_from_image(background))
+        ui = {"dims": [width, height]}
+        if incoming:
+            ui["input_bboxes"] = incoming
         return io.NodeOutput(
             preview,
             fractions_to_bbox_frame(regions, width, height),
             build_elements(regions),
-            ui={"dims": [width, height]},
+            ui=ui,
         )
 
 
