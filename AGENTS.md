@@ -234,6 +234,9 @@
   `CATEGORY`, and registration through the local mapping used by that file.
 - Keep node changes backward compatible by default. Add inputs with sensible
   defaults and avoid changing output types unless the request requires it.
+- Model implementations should add the minimal number of ComfyUI nodes required
+  to run the model. Reuse existing nodes as much as possible; adapting the model
+  to work with existing nodes is strongly preferred over creating new nodes.
 - Node-level code must not patch model code directly. Any node behavior that
   modifies, wraps, hooks, or changes model behavior must go through the model
   patcher class instead of reaching into model internals.
