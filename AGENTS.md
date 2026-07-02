@@ -8,6 +8,8 @@
   directly required.
 - Prefer practical fixes over broad architecture work. Add abstractions only
   when they remove real repeated logic or match an existing ComfyUI pattern.
+- Prefer fewer dependencies. Do not add new dependencies to ComfyUI unless they
+  are absolutely necessary.
 - Delete obsolete code aggressively when newer infrastructure makes it useless.
   Remove dead fallbacks, migration paths, unused options, debug prints, and
   compatibility branches that are no longer needed. Do not leave dead branches,
