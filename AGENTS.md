@@ -113,6 +113,11 @@
 - Do not add freeze, unfreeze, or trainability toggles to model classes. ComfyUI
   models are always treated as frozen for inference, so explicit freeze
   functionality is redundant and should not be added.
+- Remove training-only behavior such as dropout from inference model code, but
+  preserve checkpoint and state-dict compatibility when doing so. If deleting a
+  module would change state-dict keys, module ordering, or checkpoint loading
+  behavior, replace it with a no-op such as `nn.Identity` instead of removing the
+  slot outright.
 
 ## Python Style
 
